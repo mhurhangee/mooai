@@ -8,7 +8,7 @@ from logging import Logger
 from slack_sdk.web import WebClient
 from slack_sdk.errors import SlackApiError
 from slack_bolt import BoltContext
-from ..llm_caller import call_llm
+# from ..llm_caller import call_llm
 from .thread_context_store import get_thread_context
 
 

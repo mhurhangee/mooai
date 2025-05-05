@@ -3,7 +3,8 @@ slack-cli-hooks<1.0.0
 slack-sdk>=3.33.1,<4
 # If you use a different LLM vendor, replace this dependency
 openai
-
+SQLAlchemy>=2.0
+openai-agents
 pytest
 flake8
 black

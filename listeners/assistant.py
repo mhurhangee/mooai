@@ -5,7 +5,8 @@ from slack_bolt.context.get_thread_context import GetThreadContext
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-from .llm_caller import call_llm
+# from .llm_caller import call_llm
+from .agents_caller import call_agent_sync
 
 # Refer to https://tools.slack.dev/bolt-python/concepts/assistant/ for more details
 assistant = Assistant()
@@ -65,45 +66,17 @@ def respond_in_assistant_thread(
     try:
         user_message = payload["text"]
         set_status("is typing...")
+        
+        # TODO: Add custom logic for special prompts
 
-        if user_message == "Can you generate a brief summary of the referred channel?":
-            # the logic here requires the additional bot scopes:
-            # channels:join, channels:history, groups:history
-            thread_context = get_thread_context()
-            referred_channel_id = thread_context.get("channel_id")
-            try:
-                channel_history = client.conversations_history(channel=referred_channel_id, limit=50)
-            except SlackApiError as e:
-                if e.response["error"] == "not_in_channel":
-                    # If this app's bot user is not in the public channel,
-                    # we'll try joining the channel and then calling the same API again
-                    client.conversations_join(channel=referred_channel_id)
-                    channel_history = client.conversations_history(channel=referred_channel_id, limit=50)
-                else:
-                    raise e
-
-            prompt = f"Can you generate a brief summary of these messages in a Slack channel <#{referred_channel_id}>?\n\n"
-            for message in reversed(channel_history.get("messages")):
-                if message.get("user") is not None:
-                    prompt += f"\n<@{message['user']}> says: {message['text']}\n"
-            messages_in_thread = [{"role": "user", "content": prompt}]
-            returned_message = call_llm(messages_in_thread)
-            say(returned_message)
-            return
-
-        replies = client.conversations_replies(
-            channel=context.channel_id,
-            ts=context.thread_ts,
-            oldest=context.thread_ts,
-            limit=10,
+        # Default: use new agent approach for all other messages
+        returned_message = call_agent_sync(
+            payload.get("user"),
+            context.channel_id,
+            context.thread_ts,
+            user_message
         )
-        messages_in_thread: List[Dict[str, str]] = []
-        for message in replies["messages"]:
-            role = "user" if message.get("bot_id") is None else "assistant"
-            messages_in_thread.append({"role": role, "content": message["text"]})
-        returned_message = call_llm(messages_in_thread)
         say(returned_message)
-
     except Exception as e:
         logger.exception(f"Failed to handle a user message event: {e}")
         say(f":warning: Something went wrong! ({e})")

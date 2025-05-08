@@ -32,11 +32,88 @@ The following environment variables are required:
 pip install -r requirements.txt
 ```
 
-3. Set up your environment variables (see above)
-4. Run the app:
+3. Set up Slack app in [Slack API Console](https://api.slack.com/apps)
+4. Set up your environment variables (see above)
+5. Run the app:
 
 ```bash
-python app.py
+python3 app.py
+```
+
+## Code Quality
+
+This project uses Black for code formatting and Flake8 for linting to maintain code quality.
+
+### Formatting with Black
+
+To format your code with Black:
+
+```bash
+# Format all Python files
+black .
+
+# Format a specific file
+black path/to/file.py
+```
+
+### Linting with Flake8
+
+To check your code with Flake8:
+
+```bash
+# Check all Python files
+flake8 .
+
+# Check a specific file
+flake8 path/to/file.py
+```
+
+## Testing
+
+This project uses pytest for testing. The test files are located in the `tests/` directory.
+
+### Running Tests
+
+To run all tests:
+
+```bash
+pytest
+```
+
+To run a specific test file:
+
+```bash
+pytest tests/test_slack_utils.py
+```
+
+To run a specific test function:
+
+```bash
+pytest tests/test_slack_utils.py::test_function_name
+```
+
+To run tests with coverage report:
+
+```bash
+pytest --cov=lib tests/
+```
+
+### Writing Tests
+
+Test files should be named `test_*.py` and placed in the `tests/` directory. Test functions should be named `test_*`.
+
+Example test structure:
+
+```python
+def test_function_name():
+    # Arrange - set up test data
+    test_data = {...}
+    
+    # Act - call the function being tested
+    result = function_to_test(test_data)
+    
+    # Assert - check the result
+    assert result == expected_result
 ```
 
 ## Project Structure

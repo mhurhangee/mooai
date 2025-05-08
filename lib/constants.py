@@ -3,6 +3,7 @@ constants.py
 -------------
 Central location for all user-facing prompts, system messages, and error templates for Slack listeners.
 """
+
 # Suggested prompts for new assistant threads
 from typing import List, Dict, Union
 
@@ -35,7 +36,7 @@ THREAD_START_ERROR_LOG = "Failed to handle an assistant_thread_started event: {e
 USER_MESSAGE_ERROR_LOG = "Failed to handle a user message event: {error}"
 
 SYSTEM_INSTRUCTIONS = """
-- You are a very friendly and helpful assistant. 
-- Be concise and to the point. 
+- You are a very friendly and helpful assistant.
+- Be concise and to the point.
 - Format your responses with markdown and emojis.
 """

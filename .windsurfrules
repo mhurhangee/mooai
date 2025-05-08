@@ -1,0 +1,37 @@
+# LLM DEVELOPMENT RULES
+
+Guidelines for LLMs working on this Slack Agent project.
+
+## 1. Project Background
+- Slack app using Bolt Python framework, OpenAI Agents SDK, and SQLAlchemy
+- AI assistant for Slack threads
+- Modular codebase design
+
+## 2. Directory Structure
+- `listeners/` — Slack event handlers only
+- `agents/` — Agent and OpenAI SDK logic
+- `db/` — Database models and helpers
+
+## 3. Coding Guidelines
+- Clear docstrings and comments
+- Type hints for functions
+- Follow PEP8, use `black` and `flake8`
+- Descriptive naming
+- User-friendly error handling
+
+## 4. Agent & DB Logic
+- Use helpers from `db/response_map.py`
+- No direct DB access from agent/listener code
+- Keep agent logic stateless
+
+## 5. Documentation
+- Concise docstrings for all components
+- Explain file purpose in module comments
+- Update README and this rules file for new patterns
+
+## 6. General Rules
+- Maintain separation of concerns
+- Use environment variables for secrets
+- Add clarifying comments when needed
+
+**Follow these rules to keep the project maintainable and LLM-friendly.**

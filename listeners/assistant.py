@@ -6,6 +6,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from agents.agent_service import call_agent_sync
+from listeners.constants import ASSISTANT_GREETING, SUGGESTED_PROMPTS, GENERIC_ERROR, THREAD_START_ERROR_LOG, USER_MESSAGE_ERROR_LOG, THINKING_MESSAGE
 
 # Initialize the Slack Assistant middleware instance
 # This handles AI-powered threads in Slack using the Bolt framework
@@ -21,30 +22,14 @@ def start_assistant_thread(
     logger: logging.Logger,
 ):
     try:
-        say("How can I help you?")
-
-        # Suggested prompts to help users interact with the assistant
-        prompts: List[Dict[str, str]] = [
-            {
-                "title": "What does Slack stand for?",
-                "message": "Slack, a business communication service, was named after an acronym. Can you guess what it stands for?",
-            },
-            {
-                "title": "Write a draft announcement",
-                "message": "Can you write a draft announcement about a new feature my team just released? It must include how impactful it is.",
-            },
-            {
-                "title": "Suggest names for my Slack app",
-                "message": "Can you suggest a few names for my Slack app? The app helps my teammates better organize information and plan priorities and action items.",
-            },
-        ]
+        say(ASSISTANT_GREETING)
 
         # Optionally, you could use thread_context to customize prompts per channel/thread
         thread_context = get_thread_context()
-        set_suggested_prompts(prompts=prompts)
+        set_suggested_prompts(prompts=SUGGESTED_PROMPTS)
     except Exception as e:
-        logger.exception(f"Failed to handle an assistant_thread_started event: {e}", e)
-        say(f":warning: Something went wrong! ({e})")
+        logger.exception(THREAD_START_ERROR_LOG.format(error=e), e)
+        say(GENERIC_ERROR.format(error=e))
 
 
 # Handler for when a user sends a message in an assistant thread.
@@ -62,7 +47,7 @@ def respond_in_assistant_thread(
     try:
         # Get the latest user message from the Slack event payload
         user_message = payload["text"]
-        set_status("is typing...")  # Show "is typing..." in Slack thread
+        set_status(THINKING_MESSAGE)  # Show "is typing..." in Slack thread
 
         # TODO: Add custom logic for special prompts (e.g. summarization)
 
@@ -76,5 +61,5 @@ def respond_in_assistant_thread(
         )
         say(returned_message)
     except Exception as e:
-        logger.exception(f"Failed to handle a user message event: {e}")
-        say(f":warning: Something went wrong! ({e})")
+        logger.exception(USER_MESSAGE_ERROR_LOG.format(error=e))
+        say(GENERIC_ERROR.format(error=e))

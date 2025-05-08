@@ -5,8 +5,7 @@ from slack_bolt.context.get_thread_context import GetThreadContext
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-# from .llm_caller import call_llm
-from .agents_caller import call_agent_sync
+from agents.agent_service import call_agent_sync
 
 # Refer to https://tools.slack.dev/bolt-python/concepts/assistant/ for more details
 assistant = Assistant()

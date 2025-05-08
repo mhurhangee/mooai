@@ -8,6 +8,14 @@ A simple, elegant Slack bot that integrates with OpenAI's Agent SDK to provide A
 - Uses OpenAI's Agent SDK for intelligent responses
 - Provides suggested prompts to help users get started
 - Supports markdown formatting in responses
+- Web search for agent
+
+## Roadmap
+
+- Add file search functionality for the agent
+- Add (switchable) personas for the agent
+- Add more complex system messages
+- Add slash commands
 
 ## Prerequisites
 

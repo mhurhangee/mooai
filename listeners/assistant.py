@@ -1,11 +1,9 @@
 import logging
-from typing import List, Dict
 from slack_bolt import Assistant, BoltContext, Say, SetSuggestedPrompts, SetStatus
 from slack_bolt.context.get_thread_context import GetThreadContext
 from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 
-from agent_core.agent_service import call_agent_sync
+from agent_core.agent_service import run_agent_with_messages_sync
 from listeners.constants import ASSISTANT_GREETING, SUGGESTED_PROMPTS, GENERIC_ERROR, THREAD_START_ERROR_LOG, USER_MESSAGE_ERROR_LOG, THINKING_MESSAGE
 
 from markdown_to_mrkdwn import SlackMarkdownConverter
@@ -19,7 +17,6 @@ assistant = Assistant()
 @assistant.thread_started
 def start_assistant_thread(
     say: Say,
-    get_thread_context: GetThreadContext,
     set_suggested_prompts: SetSuggestedPrompts,
     logger: logging.Logger,
 ):
@@ -27,7 +24,6 @@ def start_assistant_thread(
         say(ASSISTANT_GREETING)
 
         # Optionally, you could use thread_context to customize prompts per channel/thread
-        thread_context = get_thread_context()
         set_suggested_prompts(prompts=SUGGESTED_PROMPTS)
     except Exception as e:
         logger.exception(THREAD_START_ERROR_LOG.format(error=e), e)
@@ -42,25 +38,44 @@ def respond_in_assistant_thread(
     logger: logging.Logger,
     context: BoltContext,
     set_status: SetStatus,
-    get_thread_context: GetThreadContext,
     client: WebClient,
     say: Say,
 ):
     try:
-        # Get the latest user message from the Slack event payload
-        user_message = payload["text"]
         set_status(THINKING_MESSAGE)  # Show "is typing..." in Slack thread
 
-        # TODO: Add custom logic for special prompts (e.g. summarization)
+        # Fetch the full thread from Slack
+        thread_ts = context.thread_ts or payload.get("thread_ts") or payload.get("ts")
+        channel_id = context.channel_id
+        if channel_id is None or thread_ts is None:
+            logger.error("Missing channel or thread timestamp for conversations_replies.")
+            say(GENERIC_ERROR.format(error="Missing channel or thread timestamp."))
+            return
+        try:
+            response = client.conversations_replies(channel=channel_id, ts=thread_ts, limit=1000)
+            slack_messages = response.get("messages", [])
+        except Exception as e:
+            logger.exception(f"Failed to fetch Slack thread: {e}")
+            say(GENERIC_ERROR.format(error=e))
+            return
 
-        # Forward the user's message to the OpenAI Agent.
-        # The agent uses response_id mapping for context, so only the latest message is needed.
-        returned_message = call_agent_sync(
-            payload.get("user"),
-            context.channel_id,
-            context.thread_ts,
-            user_message
-        )
+        # Format Slack messages into OpenAI Message format
+        formatted_messages = []
+        if slack_messages is not None:
+            for msg in slack_messages:
+                role = "user" if not msg.get("bot_id") else "assistant"
+                formatted_messages.append({
+                    "role": role,
+                    "content": msg.get("text", ""),
+                    "type": "message"
+                })
+        else:
+            logger.error("Slack thread messages are None.")
+            say(GENERIC_ERROR.format(error="No messages found in thread."))
+            return
+
+        # Forward the full thread to the OpenAI Agent using our agent service
+        returned_message = run_agent_with_messages_sync(formatted_messages)
 
         # Convert Markdown to Slack mrkdwn before sending
         try:

@@ -1,34 +1,30 @@
-import asyncio
-from agents import Agent, Runner  # external OpenAI Agents package
-from db.response_map import store_response_id, get_response_id
-from db.session import init_db
-import asyncio
-from agent_core.constants import SYSTEM_INSTRUCTIONS
+from agents import Agent, Runner
+from listeners.constants import SYSTEM_INSTRUCTIONS
+from typing import List, Dict, Optional
 
-# Ensure the agent response mapping table is created in the database
-init_db()
+# Define the expected message type for agent input
+AgentMessage = Dict[str, str]
 
-async def call_agent(user_id: str, channel_id: str, thread_ts: str, user_message: str, system_instructions: str = None):
+import asyncio
+
+async def run_agent_with_messages(messages: List[AgentMessage], system_instructions: Optional[str] = SYSTEM_INSTRUCTIONS) -> str:
     """
-    Run the OpenAI Agent for a given Slack user and thread.
-    Uses previous response_id (if any) for context continuity.
-    Stores the new response_id for future turns.
+    Run the OpenAI Agent asynchronously with the provided message history and system instructions.
+    Returns the agent's final output as a string.
+    Note: system_instructions will default to SYSTEM_INSTRUCTIONS if not provided.
     """
     agent = Agent(
         name="Assistant",
-        instructions=system_instructions or SYSTEM_INSTRUCTIONS,
+        instructions=system_instructions if system_instructions is not None else SYSTEM_INSTRUCTIONS,
     )
-    previous_response_id = get_response_id(user_id, channel_id, thread_ts)
-    result = await Runner.run(
-        agent,
-        user_message,
-        previous_response_id=previous_response_id,
-    )
-    store_response_id(user_id, channel_id, thread_ts, result.last_response_id)
+    # Ensure messages is the correct type for Runner.run
+    # If Runner.run expects Sequence[TResponseInputItem], cast messages accordingly
+    result = await Runner.run(agent, messages)  # type: ignore  # See Pyright lint: type invariance
     return result.final_output
 
-def call_agent_sync(user_id: str, channel_id: str, thread_ts: str, user_message: str, system_instructions: str = None):
+def run_agent_with_messages_sync(messages: List[AgentMessage], system_instructions: Optional[str] = None) -> str:
     """
-    Synchronous wrapper for call_agent, for use in synchronous Slack Bolt handlers.
+    Run the OpenAI Agent synchronously as a wrapper for the async function, 
+    because Bolt handlers are synchronous.
     """
-    return asyncio.run(call_agent(user_id, channel_id, thread_ts, user_message, system_instructions))
+    return asyncio.run(run_agent_with_messages(messages, system_instructions))

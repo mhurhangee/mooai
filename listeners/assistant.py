@@ -13,6 +13,7 @@ from lib.constants import (
 )
 
 from lib.slack_utils import fetch_slack_thread, format_slack_messages_for_openai, markdown_to_mrkdwn
+from lib.file_utils import extract_files_from_slack_messages
 
 # Initialize the Slack Assistant middleware instance
 # This handles AI-powered threads in Slack using the Bolt framework
@@ -57,9 +58,18 @@ def respond_in_assistant_thread(
         if not slack_messages:
             # Error already logged and displayed by fetch_slack_thread
             return
+            
+        # Process any file attachments in the thread
+        files_by_ts = extract_files_from_slack_messages(client, slack_messages)
+        
+        # Log file information for debugging
+        #if files_by_ts:
+        #    logger.info(f"Found files in thread: {len(files_by_ts)} messages with attachments")
+        #    for ts, files in files_by_ts.items():
+        #        logger.info(f"Message {ts}: {len(files)} files")
 
         # Format Slack messages into OpenAI Message format using utility
-        formatted_messages = format_slack_messages_for_openai(slack_messages)
+        formatted_messages = format_slack_messages_for_openai(slack_messages, files_by_ts)
         if not formatted_messages:
             error_msg = "No messages found in thread."
             logger.error(error_msg)

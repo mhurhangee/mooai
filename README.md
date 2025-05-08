@@ -9,13 +9,18 @@ A simple, elegant Slack bot that integrates with OpenAI's Agent SDK to provide A
 - Provides suggested prompts to help users get started
 - Supports markdown formatting in responses
 - Web search for agent
+- Supports PDF file attachments in threads
 
 ## Roadmap
 
-- Add file search functionality for the agent
+- Add knowledge base functionality
+- Add image upload functionality for the agent
+- Add image generation functionality for the agent
 - Add (switchable) personas for the agent
 - Add more complex system messages
 - Add slash commands
+- Token limits
+- Home tab
 
 ## Prerequisites
 
@@ -30,6 +35,20 @@ The following environment variables are required:
 - `SLACK_BOT_TOKEN` - Your Slack Bot User OAuth Token
 - `SLACK_APP_TOKEN` - Your Slack App-Level Token (starts with `xapp-`)
 - `OPENAI_API_KEY` - Your OpenAI API key
+
+## Slack App Configuration
+
+### Required Scopes
+
+Your Slack app needs the following OAuth scopes:
+
+- `assistant:write` - Allow the app to act as an App agent
+- `channels:history` - View messages in public channels
+- `channels:join` - Join public channels
+- `chat:write` - Send messages
+- `files:read` - Access files (for PDF support)
+- `groups:history` - View messages in private channels
+- `im:history` - View messages in direct messages
 
 ## Installation
 

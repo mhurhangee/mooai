@@ -29,7 +29,8 @@ def start_assistant_thread(
         # Optionally, you could use thread_context to customize prompts per channel/thread
         set_suggested_prompts(prompts=SUGGESTED_PROMPTS)
     except Exception as e:
-        logger.exception(THREAD_START_ERROR_LOG.format(error=e), e)
+        error_msg = THREAD_START_ERROR_LOG.format(error=e)
+        logger.exception(error_msg)
         say(GENERIC_ERROR.format(error=e))
 
 
@@ -50,12 +51,15 @@ def respond_in_assistant_thread(
         # Fetch the full thread from Slack using utility
         slack_messages = fetch_slack_thread(client, context, payload, say)
         if not slack_messages:
+            # Error already logged and displayed by fetch_slack_thread
             return
 
         # Format Slack messages into OpenAI Message format using utility
         formatted_messages = format_slack_messages_for_openai(slack_messages)
         if not formatted_messages:
-            say(GENERIC_ERROR.format(error="No messages found in thread."))
+            error_msg = "No messages found in thread."
+            logger.error(error_msg)
+            say(GENERIC_ERROR.format(error=error_msg))
             return
 
         # Forward the full thread to the OpenAI Agent using our agent service
@@ -66,5 +70,6 @@ def respond_in_assistant_thread(
         say(mrkdwn_message)
 
     except Exception as e:
-        logger.exception(USER_MESSAGE_ERROR_LOG.format(error=e))
+        error_msg = USER_MESSAGE_ERROR_LOG.format(error=e)
+        logger.exception(error_msg)
         say(GENERIC_ERROR.format(error=e))

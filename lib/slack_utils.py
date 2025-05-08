@@ -18,16 +18,19 @@ def format_slack_messages_for_openai(slack_messages: Optional[List[Dict[str, Any
         List of OpenAI-formatted message dicts.
     """
     formatted_messages = []
-    if slack_messages is not None:
-        for msg in slack_messages:
-            role = "user" if not msg.get("bot_id") else "assistant"
-            formatted_messages.append({
-                "role": role,
-                "content": msg.get("text", ""),
-                "type": "message"
-            })
-    else:
-        logger.error("Slack thread messages are None.")
+    
+    if not slack_messages:
+        logger.error("Slack thread messages are empty or None.")
+        return formatted_messages
+        
+    for msg in slack_messages:
+        role = "user" if not msg.get("bot_id") else "assistant"
+        formatted_messages.append({
+            "role": role,
+            "content": msg.get("text", ""),
+            "type": "message"
+        })
+    
     return formatted_messages
 
 def fetch_slack_thread(client: Any, context: Any, payload: Dict[str, Any], say: Any) -> Optional[List[Dict[str, Any]]]:
@@ -43,16 +46,19 @@ def fetch_slack_thread(client: Any, context: Any, payload: Dict[str, Any], say: 
     """
     thread_ts = getattr(context, 'thread_ts', None) or payload.get("thread_ts") or payload.get("ts")
     channel_id = getattr(context, 'channel_id', None)
-    if channel_id is None or thread_ts is None:
-        logger.error("Missing channel or thread timestamp for conversations_replies.")
-        say(GENERIC_ERROR.format(error="Missing channel or thread timestamp."))
+    
+    if not channel_id or not thread_ts:
+        error_msg = "Missing channel or thread timestamp for conversations_replies."
+        logger.error(error_msg)
+        say(GENERIC_ERROR.format(error=error_msg))
         return None
+        
     try:
         response = client.conversations_replies(channel=channel_id, ts=thread_ts, limit=1000)
-        slack_messages = response.get("messages", [])
-        return slack_messages
+        return response.get("messages", [])
     except Exception as e:
-        logger.exception(f"Failed to fetch Slack thread: {e}")
+        error_msg = f"Failed to fetch Slack thread: {e}"
+        logger.exception(error_msg)
         say(GENERIC_ERROR.format(error=e))
         return None
 
@@ -64,13 +70,13 @@ def markdown_to_mrkdwn(returned_message: str) -> str:
     Returns:
         mrkdwn-formatted string.
     """
-    if SlackMarkdownConverter is None:
-        logger.warning("SlackMarkdownConverter not available, returning original message.")
-        return returned_message
+    if not returned_message:
+        return ""
+        
     try:
         converter = SlackMarkdownConverter()
-        mrkdwn_message = converter.convert(returned_message)
-        return mrkdwn_message
+        return converter.convert(returned_message)
     except Exception as e:
-        logger.error(f"Markdown to mrkdwn conversion failed: {e}")
+        error_msg = f"Markdown to mrkdwn conversion failed: {e}"
+        logger.error(error_msg)
         return returned_message

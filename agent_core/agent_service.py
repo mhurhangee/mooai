@@ -3,6 +3,7 @@ from agents import Agent, Runner  # external OpenAI Agents package
 from db.response_map import store_response_id, get_response_id
 from db.session import init_db
 import asyncio
+from agent_core.constants import SYSTEM_INSTRUCTIONS
 
 # Ensure the agent response mapping table is created in the database
 init_db()
@@ -15,7 +16,7 @@ async def call_agent(user_id: str, channel_id: str, thread_ts: str, user_message
     """
     agent = Agent(
         name="Assistant",
-        instructions=system_instructions or "You are a helpful assistant. Be VERY concise.",
+        instructions=system_instructions or SYSTEM_INSTRUCTIONS,
     )
     previous_response_id = get_response_id(user_id, channel_id, thread_ts)
     result = await Runner.run(

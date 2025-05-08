@@ -7,11 +7,12 @@ from slack_sdk.errors import SlackApiError
 
 from agents.agent_service import call_agent_sync
 
-# Refer to https://tools.slack.dev/bolt-python/concepts/assistant/ for more details
+# Initialize the Slack Assistant middleware instance
+# This handles AI-powered threads in Slack using the Bolt framework
 assistant = Assistant()
 
-
-# This listener is invoked when a human user opened an assistant thread
+# Handler for when a user starts a new assistant thread in Slack.
+# Presents the user with a set of suggested prompts to help them get started.
 @assistant.thread_started
 def start_assistant_thread(
     say: Say,
@@ -22,6 +23,7 @@ def start_assistant_thread(
     try:
         say("How can I help you?")
 
+        # Suggested prompts to help users interact with the assistant
         prompts: List[Dict[str, str]] = [
             {
                 "title": "What does Slack stand for?",
@@ -37,6 +39,7 @@ def start_assistant_thread(
             },
         ]
 
+        # Optionally, you could use thread_context to customize prompts per channel/thread
         thread_context = get_thread_context()
         set_suggested_prompts(prompts=prompts)
     except Exception as e:
@@ -44,7 +47,8 @@ def start_assistant_thread(
         say(f":warning: Something went wrong! ({e})")
 
 
-# This listener is invoked when the human user sends a reply in the assistant thread
+# Handler for when a user sends a message in an assistant thread.
+# Passes the user's latest message to the OpenAI agent (with context maintained by response_id mapping).
 @assistant.user_message
 def respond_in_assistant_thread(
     payload: dict,
@@ -56,12 +60,14 @@ def respond_in_assistant_thread(
     say: Say,
 ):
     try:
+        # Get the latest user message from the Slack event payload
         user_message = payload["text"]
-        set_status("is typing...")
-        
-        # TODO: Add custom logic for special prompts
+        set_status("is typing...")  # Show "is typing..." in Slack thread
 
-        # Default: use new agent approach for all other messages
+        # TODO: Add custom logic for special prompts (e.g. summarization)
+
+        # Forward the user's message to the OpenAI Agent.
+        # The agent uses response_id mapping for context, so only the latest message is needed.
         returned_message = call_agent_sync(
             payload.get("user"),
             context.channel_id,

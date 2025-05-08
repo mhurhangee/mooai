@@ -41,7 +41,7 @@ def get_response_id(user_id: str, channel_id: str, thread_ts: str):
 async def call_agent(user_id: str, channel_id: str, thread_ts: str, user_message: str, system_instructions: str = None):
     agent = Agent(
         name="Assistant",
-        instructions=system_instructions or "You are a helpful assistant. Be VERY concise. Speak like a pirate.",
+        instructions=system_instructions or "You are a helpful assistant. Be VERY concise.",
     )
     previous_response_id = get_response_id(user_id, channel_id, thread_ts)
     result = await Runner.run(

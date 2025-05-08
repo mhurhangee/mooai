@@ -39,13 +39,6 @@ def start_assistant_thread(
         ]
 
         thread_context = get_thread_context()
-        if thread_context is not None and thread_context.channel_id is not None:
-            summarize_channel = {
-                "title": "Summarize the referred channel",
-                "message": "Can you generate a brief summary of the referred channel?",
-            }
-            prompts.append(summarize_channel)
-
         set_suggested_prompts(prompts=prompts)
     except Exception as e:
         logger.exception(f"Failed to handle an assistant_thread_started event: {e}", e)

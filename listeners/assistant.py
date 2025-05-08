@@ -5,8 +5,10 @@ from slack_bolt.context.get_thread_context import GetThreadContext
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-from agents.agent_service import call_agent_sync
+from agent_core.agent_service import call_agent_sync
 from listeners.constants import ASSISTANT_GREETING, SUGGESTED_PROMPTS, GENERIC_ERROR, THREAD_START_ERROR_LOG, USER_MESSAGE_ERROR_LOG, THINKING_MESSAGE
+
+from markdown_to_mrkdwn import SlackMarkdownConverter
 
 # Initialize the Slack Assistant middleware instance
 # This handles AI-powered threads in Slack using the Bolt framework
@@ -59,7 +61,16 @@ def respond_in_assistant_thread(
             context.thread_ts,
             user_message
         )
-        say(returned_message)
+
+        # Convert Markdown to Slack mrkdwn before sending
+        try:
+            converter = SlackMarkdownConverter()
+            mrkdwn_message = converter.convert(returned_message)
+        except Exception as e:
+            logger.error(f"Markdown to mrkdwn conversion failed: {e}")
+            mrkdwn_message = returned_message
+
+        say(mrkdwn_message)
     except Exception as e:
         logger.exception(USER_MESSAGE_ERROR_LOG.format(error=e))
         say(GENERIC_ERROR.format(error=e))

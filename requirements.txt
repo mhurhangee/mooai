@@ -5,6 +5,7 @@ slack-sdk>=3.33.1,<4
 openai
 SQLAlchemy>=2.0
 openai-agents
+markdown_to_mrkdwn
 pytest
 flake8
 black

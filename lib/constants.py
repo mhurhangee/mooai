@@ -11,7 +11,7 @@ from typing import List, Dict, Union
 ASSISTANT_GREETING = "How can I help you?"
 
 # Greeting when the bot is mentioned in a channel
-MENTION_GREETING = "👋 Thanks for the mention! I'll help you with that."
+MENTION_GREETING = "🐮 Thanks for the mention! Give me a second, and I'll help you with that. If you want me to reply to any later messages in this thread, just mention me again."
 
 
 SUGGESTED_PROMPTS: List[Union[str, Dict[str, str]]] = [

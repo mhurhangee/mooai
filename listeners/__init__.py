@@ -21,7 +21,7 @@ def register_listeners(app):
     # Register the app_mention event handler
     logger.debug("Registering app_mention event handler")
     app.event("app_mention")(respond_to_mention)
-    
+
     # Register the message event handler for thread messages
     logger.debug("Registering message event handler for thread messages")
     app.event("message")(respond_to_thread_message)

@@ -187,3 +187,5 @@ You can easily customize the assistant's behavior by modifying:
 ## License
 
 MIT
+
+:)

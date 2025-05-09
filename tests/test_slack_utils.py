@@ -68,7 +68,7 @@ def test_fetch_slack_thread_success(mock_logger):
 
     # Assert
     assert result == ["message1", "message2"]
-    mock_client.conversations_replies.assert_called_once_with(channel="C123", ts="123.456", limit=1000)
+    mock_client.conversations_replies.assert_called_once_with(channel="C123", ts="123.456", limit=1000, inclusive=True)
 
 
 @patch("lib.slack_utils.logger")

@@ -47,7 +47,7 @@ def home_opened(client: WebClient, event: dict, logger: logging.Logger):
                         "elements": [
                             {
                                 "type": "mrkdwn",
-                                "text": " 3️⃣ *... in threads*: _(coming soon)_ While in a channel, mention `@MooAI` to start a thread 🧵",
+                                "text": " 3️⃣ *... in threads*: While in a channel, mention `@MooAI` to start a thread 🧵",
                             }
                         ],
                     },

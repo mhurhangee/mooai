@@ -7,7 +7,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 from listeners import register_listeners
 
 # Initialization
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 # Register Listeners

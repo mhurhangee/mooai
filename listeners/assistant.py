@@ -58,12 +58,12 @@ def respond_in_assistant_thread(
         if not slack_messages:
             # Error already logged and displayed by fetch_slack_thread
             return
-            
+
         # Process any file attachments in the thread
         files_by_ts = extract_files_from_slack_messages(client, slack_messages)
-        
+
         # Log file information for debugging
-        #if files_by_ts:
+        # if files_by_ts:
         #    logger.info(f"Found files in thread: {len(files_by_ts)} messages with attachments")
         #    for ts, files in files_by_ts.items():
         #        logger.info(f"Message {ts}: {len(files)} files")

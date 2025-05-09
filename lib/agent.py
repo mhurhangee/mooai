@@ -19,7 +19,7 @@ async def run_agent_with_messages(
         name="Assistant",
         instructions=system_instructions,
         tools=[WebSearchTool(user_location={"type": "approximate", "country": "GB"})],
-        model="gpt-4.1-mini"
+        model="gpt-4.1-mini",
     )
     # Ensure messages is the correct type for Runner.run
     # If Runner.run expects Sequence[TResponseInputItem], cast messages accordingly

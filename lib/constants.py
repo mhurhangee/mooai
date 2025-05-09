@@ -10,6 +10,9 @@ from typing import List, Dict, Union
 # System prompt for initial assistant greeting
 ASSISTANT_GREETING = "How can I help you?"
 
+# Greeting when the bot is mentioned in a channel
+MENTION_GREETING = "👋 Thanks for the mention! I'll help you with that."
+
 
 SUGGESTED_PROMPTS: List[Union[str, Dict[str, str]]] = [
     {

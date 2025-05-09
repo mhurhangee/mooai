@@ -10,6 +10,7 @@ from lib.constants import (
     THREAD_START_ERROR_LOG,
     USER_MESSAGE_ERROR_LOG,
     THINKING_MESSAGE,
+    MENTION_GREETING,
 )
 
 from lib.slack_utils import fetch_slack_thread, format_slack_messages_for_openai, markdown_to_mrkdwn
@@ -58,12 +59,12 @@ def respond_in_assistant_thread(
         if not slack_messages:
             # Error already logged and displayed by fetch_slack_thread
             return
-
+            
         # Process any file attachments in the thread
         files_by_ts = extract_files_from_slack_messages(client, slack_messages)
-
+        
         # Log file information for debugging
-        # if files_by_ts:
+        #if files_by_ts:
         #    logger.info(f"Found files in thread: {len(files_by_ts)} messages with attachments")
         #    for ts, files in files_by_ts.items():
         #        logger.info(f"Message {ts}: {len(files)} files")
@@ -87,3 +88,92 @@ def respond_in_assistant_thread(
         error_msg = USER_MESSAGE_ERROR_LOG.format(error=e)
         logger.exception(error_msg)
         say(GENERIC_ERROR.format(error=e))
+
+
+# Handler for when the bot is mentioned in a channel.
+# Creates a new thread with the bot's response.
+def respond_to_mention(
+    body: dict,
+    logger: logging.Logger,
+    client: WebClient,
+):
+    """Handle mentions in channels by creating a thread with the bot's response.
+    
+    Args:
+        body: The event body containing the mention details
+        logger: Logger instance for error reporting
+        client: Slack WebClient instance
+    """
+    try:
+        # Extract event data from the body
+        event = body.get("event", {})
+        message_text = event.get("text", "")
+        user_id = event.get("user")
+        channel_id = event.get("channel")
+        ts = event.get("ts")
+        
+        if not message_text or not channel_id or not ts:
+            logger.error("Missing required fields in mention payload")
+            return
+            
+        # Create a thread by responding to the message
+        thread_response = client.chat_postMessage(
+            channel=channel_id,
+            thread_ts=ts,
+            text=MENTION_GREETING
+        )
+        
+        if not thread_response or not thread_response.get("ok", False):
+            logger.error(f"Failed to create thread: {thread_response.get('error', 'Unknown error')}")
+            return
+            
+        # Now fetch the thread to process it (which will include the original message)
+        try:
+            # Use conversations_replies to get the thread messages
+            response = client.conversations_replies(channel=channel_id, ts=ts, limit=1000, inclusive=True)
+            slack_messages = response.get("messages", [])
+            
+            if not slack_messages:
+                logger.error("No messages found in thread")
+                return
+                
+            # Process any file attachments in the thread
+            files_by_ts = extract_files_from_slack_messages(client, slack_messages)
+            
+            # Format Slack messages into OpenAI Message format
+            formatted_messages = format_slack_messages_for_openai(slack_messages, files_by_ts)
+            if not formatted_messages:
+                error_msg = "No messages found in thread."
+                logger.error(error_msg)
+                client.chat_postMessage(
+                    channel=channel_id,
+                    thread_ts=ts,
+                    text=GENERIC_ERROR.format(error=error_msg)
+                )
+                return
+                
+            # Forward the thread to the OpenAI Agent
+            returned_message = run_agent_with_messages_sync(formatted_messages)
+            
+            # Convert Markdown to Slack mrkdwn before sending
+            mrkdwn_message = markdown_to_mrkdwn(returned_message)
+            
+            # Send the response in the thread
+            client.chat_postMessage(
+                channel=channel_id,
+                thread_ts=ts,
+                text=mrkdwn_message
+            )
+            
+        except Exception as thread_error:
+            logger.exception(f"Error processing thread: {thread_error}")
+            client.chat_postMessage(
+                channel=channel_id,
+                thread_ts=ts,
+                text=GENERIC_ERROR.format(error=thread_error)
+            )
+            
+    except Exception as e:
+        error_msg = f"Failed to handle mention: {e}"
+        logger.exception(error_msg)
+        # We can't reliably send an error message here as we might not have channel_id and ts

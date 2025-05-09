@@ -4,13 +4,14 @@ Tests for the assistant listeners.
 
 from unittest.mock import MagicMock, patch
 from listeners.assistant import (
-    start_assistant_thread, 
-    respond_in_assistant_thread, 
+    start_assistant_thread,
+    respond_in_assistant_thread,
     respond_to_mention,
     respond_to_thread_message,
-    process_thread_and_respond
+    process_thread_and_respond,
 )
-from lib.constants import ASSISTANT_GREETING, SUGGESTED_PROMPTS, THINKING_MESSAGE, MENTION_GREETING
+from lib.constants import ASSISTANT_GREETING, SUGGESTED_PROMPTS, THINKING_MESSAGE, MENTION_GREETING, FOLLOWUP_PROMPTS_TITLE
+from lib.models import StructuredResponse
 
 
 def test_start_assistant_thread_success():
@@ -55,10 +56,10 @@ def test_start_assistant_thread_error():
 @patch("listeners.assistant.format_slack_messages_for_openai")
 @patch("listeners.assistant.run_agent_with_messages_sync")
 @patch("listeners.assistant.markdown_to_mrkdwn")
-def test_respond_in_assistant_thread_success(
+def test_respond_in_assistant_thread_success_plain_text(
     mock_markdown_to_mrkdwn, mock_run_agent, mock_format_messages, mock_extract_files, mock_fetch_thread
 ):
-    """Test responding in an assistant thread successfully."""
+    """Test responding in an assistant thread successfully with plain text response."""
     # Arrange
     mock_payload = {}
     mock_logger = MagicMock()
@@ -66,6 +67,8 @@ def test_respond_in_assistant_thread_success(
     mock_set_status = MagicMock()
     mock_client = MagicMock()
     mock_say = MagicMock()
+    mock_set_title = MagicMock()
+    mock_set_suggested_prompts = MagicMock()
 
     # Setup mocks
     mock_fetch_thread.return_value = ["message1", "message2"]
@@ -82,6 +85,8 @@ def test_respond_in_assistant_thread_success(
         set_status=mock_set_status,
         client=mock_client,
         say=mock_say,
+        set_title=mock_set_title,
+        set_suggested_prompts=mock_set_suggested_prompts,
     )
 
     # Assert
@@ -89,9 +94,77 @@ def test_respond_in_assistant_thread_success(
     mock_fetch_thread.assert_called_once()
     mock_extract_files.assert_called_once_with(mock_client, ["message1", "message2"])
     mock_format_messages.assert_called_once_with(["message1", "message2"], mock_extract_files.return_value)
-    mock_run_agent.assert_called_once_with([{"role": "user", "content": "Hello"}])
+    mock_run_agent.assert_called_once_with([{"role": "user", "content": "Hello"}], use_structured_output=True)
     mock_markdown_to_mrkdwn.assert_called_once_with("Agent response")
     mock_say.assert_called_once_with("Formatted agent response")
+    mock_set_title.assert_not_called()
+    mock_set_suggested_prompts.assert_not_called()
+    
+
+@patch("listeners.assistant.fetch_slack_thread")
+@patch("listeners.assistant.extract_files_from_slack_messages")
+@patch("listeners.assistant.format_slack_messages_for_openai")
+@patch("listeners.assistant.run_agent_with_messages_sync")
+@patch("listeners.assistant.markdown_to_mrkdwn")
+def test_respond_in_assistant_thread_success_structured(
+    mock_markdown_to_mrkdwn, mock_run_agent, mock_format_messages, mock_extract_files, mock_fetch_thread
+):
+    """Test responding in an assistant thread successfully with structured response."""
+    # Arrange
+    mock_payload = {}
+    mock_logger = MagicMock()
+    mock_context = MagicMock()
+    mock_set_status = MagicMock()
+    mock_client = MagicMock()
+    mock_say = MagicMock()
+    mock_set_title = MagicMock()
+    mock_set_suggested_prompts = MagicMock()
+
+    # Setup mocks
+    mock_fetch_thread.return_value = ["message1", "message2"]
+    mock_extract_files.return_value = {"123.456": [{"type": "input_image", "image_url": "data:image/png;base64,abc"}]}
+    mock_format_messages.return_value = [{"role": "user", "content": "Hello"}]
+    
+    # Create a structured response
+    structured_response = StructuredResponse(
+        thread_title="Test Thread",
+        message_title="Test Response",
+        response="This is the agent's structured response",
+        followups=["Follow-up 1", "Follow-up 2"]
+    )
+    mock_run_agent.return_value = structured_response
+    mock_markdown_to_mrkdwn.return_value = "Formatted agent response"
+
+    # Act
+    respond_in_assistant_thread(
+        payload=mock_payload,
+        logger=mock_logger,
+        context=mock_context,
+        set_status=mock_set_status,
+        client=mock_client,
+        say=mock_say,
+        set_title=mock_set_title,
+        set_suggested_prompts=mock_set_suggested_prompts,
+    )
+
+    # Assert
+    mock_set_status.assert_called_once_with(THINKING_MESSAGE)
+    mock_fetch_thread.assert_called_once()
+    mock_extract_files.assert_called_once_with(mock_client, ["message1", "message2"])
+    mock_format_messages.assert_called_once_with(["message1", "message2"], mock_extract_files.return_value)
+    mock_run_agent.assert_called_once_with([{"role": "user", "content": "Hello"}], use_structured_output=True)
+    mock_markdown_to_mrkdwn.assert_called_once_with("This is the agent's structured response")
+    mock_set_title.assert_called_once_with("Test Thread")
+    
+    # Check that say was called with blocks
+    mock_say.assert_called_once()
+    assert "blocks" in mock_say.call_args[1]
+    
+    # Check that set_suggested_prompts was called with formatted prompts
+    mock_set_suggested_prompts.assert_called_once()
+    assert "prompts" in mock_set_suggested_prompts.call_args[1]
+    assert "title" in mock_set_suggested_prompts.call_args[1]
+    assert mock_set_suggested_prompts.call_args[1]["title"] == FOLLOWUP_PROMPTS_TITLE
 
 
 @patch("listeners.assistant.fetch_slack_thread")
@@ -104,6 +177,8 @@ def test_respond_in_assistant_thread_no_messages(mock_fetch_thread):
     mock_set_status = MagicMock()
     mock_client = MagicMock()
     mock_say = MagicMock()
+    mock_set_title = MagicMock()
+    mock_set_suggested_prompts = MagicMock()
 
     # Setup mocks
     mock_fetch_thread.return_value = None
@@ -116,6 +191,8 @@ def test_respond_in_assistant_thread_no_messages(mock_fetch_thread):
         set_status=mock_set_status,
         client=mock_client,
         say=mock_say,
+        set_title=mock_set_title,
+        set_suggested_prompts=mock_set_suggested_prompts,
     )
 
     # Assert
@@ -137,6 +214,8 @@ def test_respond_in_assistant_thread_empty_formatted_messages(mock_format_messag
     mock_set_status = MagicMock()
     mock_client = MagicMock()
     mock_say = MagicMock()
+    mock_set_title = MagicMock()
+    mock_set_suggested_prompts = MagicMock()
 
     # Setup mocks
     mock_fetch_thread.return_value = ["message1", "message2"]
@@ -151,6 +230,8 @@ def test_respond_in_assistant_thread_empty_formatted_messages(mock_format_messag
         set_status=mock_set_status,
         client=mock_client,
         say=mock_say,
+        set_title=mock_set_title,
+        set_suggested_prompts=mock_set_suggested_prompts,
     )
 
     # Assert
@@ -167,29 +248,18 @@ def test_respond_in_assistant_thread_empty_formatted_messages(mock_format_messag
 def test_respond_to_mention_new_thread(mock_process_thread):
     """Test responding to a new mention in a channel (creating a new thread)."""
     # Arrange
-    mock_body = {
-        "event": {
-            "text": "<@U123> Hello",
-            "user": "U456",
-            "channel": "C789",
-            "ts": "123.456"
-        }
-    }
+    mock_body = {"event": {"text": "<@U123> Hello", "user": "U456", "channel": "C789", "ts": "123.456"}}
     mock_logger = MagicMock()
     mock_client = MagicMock()
-    
+
     # Setup mocks
     mock_client.chat_postMessage.return_value = {"ok": True}
-    
+
     # Act
     respond_to_mention(body=mock_body, logger=mock_logger, client=mock_client)
-    
+
     # Assert
-    mock_client.chat_postMessage.assert_called_once_with(
-        channel="C789",
-        thread_ts="123.456",
-        text=MENTION_GREETING
-    )
+    mock_client.chat_postMessage.assert_called_once_with(channel="C789", thread_ts="123.456", text=MENTION_GREETING)
     mock_process_thread.assert_called_once_with("C789", "123.456", mock_client, mock_logger)
 
 
@@ -200,10 +270,10 @@ def test_respond_to_mention_missing_data(mock_process_thread):
     mock_body = {"event": {}}
     mock_logger = MagicMock()
     mock_client = MagicMock()
-    
+
     # Act
     respond_to_mention(body=mock_body, logger=mock_logger, client=mock_client)
-    
+
     # Assert
     mock_logger.error.assert_called_once()
     mock_client.chat_postMessage.assert_not_called()
@@ -220,16 +290,16 @@ def test_respond_to_thread_message_with_mention(mock_process_thread):
             "user": "U456",
             "channel": "C789",
             "ts": "123.789",
-            "thread_ts": "123.456"
+            "thread_ts": "123.456",
         },
-        "authorizations": [{"user_id": "B123"}]
+        "authorizations": [{"user_id": "B123"}],
     }
     mock_logger = MagicMock()
     mock_client = MagicMock()
-    
+
     # Act
     respond_to_thread_message(body=mock_body, logger=mock_logger, client=mock_client)
-    
+
     # Assert
     mock_process_thread.assert_called_once_with("C789", "123.456", mock_client, mock_logger)
 
@@ -244,16 +314,16 @@ def test_respond_to_thread_message_without_mention(mock_process_thread):
             "user": "U456",
             "channel": "C789",
             "ts": "123.789",
-            "thread_ts": "123.456"
+            "thread_ts": "123.456",
         },
-        "authorizations": [{"user_id": "B123"}]
+        "authorizations": [{"user_id": "B123"}],
     }
     mock_logger = MagicMock()
     mock_client = MagicMock()
-    
+
     # Act
     respond_to_thread_message(body=mock_body, logger=mock_logger, client=mock_client)
-    
+
     # Assert
     mock_process_thread.assert_not_called()
 
@@ -262,34 +332,79 @@ def test_respond_to_thread_message_without_mention(mock_process_thread):
 @patch("listeners.assistant.format_slack_messages_for_openai")
 @patch("listeners.assistant.run_agent_with_messages_sync")
 @patch("listeners.assistant.markdown_to_mrkdwn")
-def test_process_thread_and_respond_success(
+def test_process_thread_and_respond_success_plain_text(
     mock_markdown_to_mrkdwn, mock_run_agent, mock_format_messages, mock_extract_files
 ):
-    """Test processing a thread and generating a response successfully."""
+    """Test processing a thread and generating a plain text response successfully."""
     # Arrange
     channel_id = "C789"
     thread_ts = "123.456"
     mock_client = MagicMock()
     mock_logger = MagicMock()
-    
+
     # Setup mocks
     mock_client.conversations_replies.return_value = {"messages": ["message1", "message2"]}
     mock_extract_files.return_value = {}
     mock_format_messages.return_value = [{"role": "user", "content": "Hello"}]
     mock_run_agent.return_value = "Agent response"
     mock_markdown_to_mrkdwn.return_value = "Formatted agent response"
-    
+
     # Act
     process_thread_and_respond(channel_id, thread_ts, mock_client, mock_logger)
-    
+
     # Assert
-    mock_client.conversations_replies.assert_called_once_with(
-        channel=channel_id, ts=thread_ts, limit=1000, inclusive=True
-    )
+    mock_client.conversations_replies.assert_called_once_with(channel=channel_id, ts=thread_ts, limit=1000, inclusive=True)
     mock_extract_files.assert_called_once_with(mock_client, ["message1", "message2"])
     mock_format_messages.assert_called_once_with(["message1", "message2"], {})
-    mock_run_agent.assert_called_once_with([{"role": "user", "content": "Hello"}])
+    mock_run_agent.assert_called_once_with([{"role": "user", "content": "Hello"}], use_structured_output=True)
     mock_markdown_to_mrkdwn.assert_called_once_with("Agent response")
     mock_client.chat_postMessage.assert_called_once_with(
         channel=channel_id, thread_ts=thread_ts, text="Formatted agent response"
     )
+
+
+@patch("listeners.assistant.extract_files_from_slack_messages")
+@patch("listeners.assistant.format_slack_messages_for_openai")
+@patch("listeners.assistant.run_agent_with_messages_sync")
+@patch("listeners.assistant.markdown_to_mrkdwn")
+def test_process_thread_and_respond_success_structured(
+    mock_markdown_to_mrkdwn, mock_run_agent, mock_format_messages, mock_extract_files
+):
+    """Test processing a thread and generating a structured response successfully."""
+    # Arrange
+    channel_id = "C789"
+    thread_ts = "123.456"
+    mock_client = MagicMock()
+    mock_logger = MagicMock()
+
+    # Setup mocks
+    mock_client.conversations_replies.return_value = {"messages": ["message1", "message2"]}
+    mock_extract_files.return_value = {}
+    mock_format_messages.return_value = [{"role": "user", "content": "Hello"}]
+    
+    # Create a structured response
+    structured_response = StructuredResponse(
+        thread_title="Test Thread",
+        message_title="Test Response",
+        response="This is the agent's structured response",
+        followups=["Follow-up 1", "Follow-up 2"]
+    )
+    mock_run_agent.return_value = structured_response
+    mock_markdown_to_mrkdwn.return_value = "Formatted agent response"
+
+    # Act
+    process_thread_and_respond(channel_id, thread_ts, mock_client, mock_logger)
+
+    # Assert
+    mock_client.conversations_replies.assert_called_once_with(channel=channel_id, ts=thread_ts, limit=1000, inclusive=True)
+    mock_extract_files.assert_called_once_with(mock_client, ["message1", "message2"])
+    mock_format_messages.assert_called_once_with(["message1", "message2"], {})
+    mock_run_agent.assert_called_once_with([{"role": "user", "content": "Hello"}], use_structured_output=True)
+    mock_markdown_to_mrkdwn.assert_called_once_with("This is the agent's structured response")
+    
+    # Check that chat_postMessage was called with blocks
+    mock_client.chat_postMessage.assert_called_once()
+    assert "blocks" in mock_client.chat_postMessage.call_args[1]
+    assert mock_client.chat_postMessage.call_args[1]["channel"] == channel_id
+    assert mock_client.chat_postMessage.call_args[1]["thread_ts"] == thread_ts
+    assert mock_client.chat_postMessage.call_args[1]["text"] == "Formatted agent response"

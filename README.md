@@ -12,14 +12,13 @@ A Slack bot that integrates with OpenAI's Agent SDK to provide AI assistant func
 - Web search is enabled for the agent
 - Supports image and PDF file attachments
 - Home tab
+- AI generated suggested prompts, message title and thread title
 
 ## Roadmap
 
-- Add AI generated suggested prompts, message title and thread title
 - Add knowledge base functionality
 - Add image generation functionality for the agent
 - Add (switchable) personas for the agent
-- Add more complex system messages
 - Add slash commands
 - Token limits
 

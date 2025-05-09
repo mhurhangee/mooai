@@ -1,6 +1,7 @@
 import logging
-from slack_bolt import Assistant, BoltContext, Say, SetSuggestedPrompts, SetStatus
+from slack_bolt import Assistant, BoltContext, Say, SetSuggestedPrompts, SetStatus, SetTitle
 from slack_sdk import WebClient
+from slack_sdk.models.blocks import HeaderBlock, SectionBlock, DividerBlock
 
 from lib.agent import run_agent_with_messages_sync
 from lib.constants import (
@@ -11,6 +12,7 @@ from lib.constants import (
     USER_MESSAGE_ERROR_LOG,
     THINKING_MESSAGE,
     MENTION_GREETING,
+    FOLLOWUP_PROMPTS_TITLE,
 )
 
 from lib.slack_utils import fetch_slack_thread, format_slack_messages_for_openai, markdown_to_mrkdwn
@@ -50,6 +52,8 @@ def respond_in_assistant_thread(
     set_status: SetStatus,
     client: WebClient,
     say: Say,
+    set_title: SetTitle,
+    set_suggested_prompts: SetSuggestedPrompts,
 ):
     try:
         set_status(THINKING_MESSAGE)  # Show "is typing..." in Slack thread
@@ -63,12 +67,6 @@ def respond_in_assistant_thread(
         # Process any file attachments in the thread
         files_by_ts = extract_files_from_slack_messages(client, slack_messages)
 
-        # Log file information for debugging
-        # if files_by_ts:
-        #    logger.info(f"Found files in thread: {len(files_by_ts)} messages with attachments")
-        #    for ts, files in files_by_ts.items():
-        #        logger.info(f"Message {ts}: {len(files)} files")
-
         # Format Slack messages into OpenAI Message format using utility
         formatted_messages = format_slack_messages_for_openai(slack_messages, files_by_ts)
         if not formatted_messages:
@@ -77,12 +75,43 @@ def respond_in_assistant_thread(
             say(GENERIC_ERROR.format(error=error_msg))
             return
 
-        # Forward the full thread to the OpenAI Agent using our agent service
-        returned_message = run_agent_with_messages_sync(formatted_messages)
+        # Forward the full thread to the OpenAI Agent using our agent service with structured output
+        response = run_agent_with_messages_sync(formatted_messages, use_structured_output=True)
 
-        # Convert Markdown to Slack mrkdwn before sending using utility
-        mrkdwn_message = markdown_to_mrkdwn(returned_message)
-        say(mrkdwn_message)
+        # Handle structured response
+        from lib.models import StructuredResponse
+
+        if isinstance(response, StructuredResponse):
+            # Update thread title if provided
+            if response.thread_title:
+                set_title(response.thread_title)
+
+            # Build blocks for the message
+            blocks = []
+
+            # Add message title if provided
+            if response.message_title:
+                blocks.append(HeaderBlock(text=response.message_title))
+
+            # Add main response content
+            mrkdwn_response = markdown_to_mrkdwn(response.response)
+            blocks.append(SectionBlock(text=mrkdwn_response))
+
+            # Send the message with blocks
+            say(text=mrkdwn_response, blocks=blocks)
+
+            # Set follow-up prompts if provided
+            if response.followups and len(response.followups) > 0:
+                # Use the helper method to get properly formatted prompts
+                from typing import cast, List, Dict, Union
+
+                formatted_prompts = cast(List[Union[str, Dict[str, str]]], response.get_formatted_prompts())
+                set_suggested_prompts(prompts=formatted_prompts, title=FOLLOWUP_PROMPTS_TITLE)
+
+        else:
+            # Fallback to plain text response if not structured
+            mrkdwn_message = markdown_to_mrkdwn(response)
+            say(mrkdwn_message)
 
     except Exception as e:
         error_msg = USER_MESSAGE_ERROR_LOG.format(error=e)
@@ -108,7 +137,7 @@ def respond_to_mention(
         # Extract event data from the body
         event = body.get("event", {})
         message_text = event.get("text", "")
-        #user_id = event.get("user")
+        # user_id = event.get("user")
         channel_id = event.get("channel")
         ts = event.get("ts")
         thread_ts = event.get("thread_ts", ts)  # Use message ts as thread_ts if not in a thread
@@ -152,7 +181,7 @@ def respond_to_thread_message(
         # Extract event data from the body
         event = body.get("event", {})
         message_text = event.get("text", "")
-        #user_id = event.get("user")
+        # user_id = event.get("user")
         channel_id = event.get("channel")
         ts = event.get("ts")
         thread_ts = event.get("thread_ts")
@@ -208,14 +237,37 @@ def process_thread_and_respond(channel_id: str, thread_ts: str, client: WebClien
             client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=GENERIC_ERROR.format(error=error_msg))
             return
 
-        # Forward the thread to the OpenAI Agent
-        returned_message = run_agent_with_messages_sync(formatted_messages)
+        # Forward the thread to the OpenAI Agent with structured output
+        response = run_agent_with_messages_sync(formatted_messages, use_structured_output=True)
 
-        # Convert Markdown to Slack mrkdwn before sending
-        mrkdwn_message = markdown_to_mrkdwn(returned_message)
+        # Handle structured response
+        from lib.models import StructuredResponse
 
-        # Send the response in the thread
-        client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=mrkdwn_message)
+        if isinstance(response, StructuredResponse):
+            # Build blocks for the message
+            blocks = []
+
+            # Add message title if provided
+            if response.message_title:
+                blocks.append(HeaderBlock(text=response.message_title))
+                blocks.append(DividerBlock())
+
+            # Add main response content
+            mrkdwn_response = markdown_to_mrkdwn(response.response)
+            blocks.append(SectionBlock(text=mrkdwn_response))
+
+            # Send the response in the thread with blocks if available
+            if blocks:
+                client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=mrkdwn_response, blocks=blocks)
+            else:
+                client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=mrkdwn_response)
+
+            # Note: We can't update thread title or set suggested prompts in regular threads
+            # as those are specific to Assistant threads
+        else:
+            # Fallback to plain text response if not structured
+            mrkdwn_message = markdown_to_mrkdwn(response)
+            client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=mrkdwn_message)
 
     except Exception as thread_error:
         logger.exception(f"Error processing thread: {thread_error}")

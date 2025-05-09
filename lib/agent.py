@@ -12,18 +12,18 @@ AgentMessage = Dict[str, str]
 
 
 async def run_agent_with_messages(
-    messages: List[AgentMessage], 
+    messages: List[AgentMessage],
     system_instructions: Optional[str] = SYSTEM_INSTRUCTIONS,
-    use_structured_output: bool = False
+    use_structured_output: bool = False,
 ) -> Union[str, StructuredResponse]:
     """
     Run the OpenAI Agent asynchronously with the provided message history and system instructions.
-    
+
     Args:
         messages: List of messages in the conversation history
         system_instructions: Custom system instructions (defaults to SYSTEM_INSTRUCTIONS)
         use_structured_output: Whether to use structured output format
-        
+
     Returns:
         Either a string (plain text response) or a StructuredResponse object
     """
@@ -38,33 +38,27 @@ async def run_agent_with_messages(
     # If Runner.run expects Sequence[TResponseInputItem], cast messages accordingly
     result = await Runner.run(agent, messages)  # type: ignore  # See Pyright lint: type invariance
     logger.debug(result)
-    
+
     return result.final_output
 
 
 def run_agent_with_messages_sync(
-    messages: List[AgentMessage], 
-    system_instructions: Optional[str] = None,
-    use_structured_output: bool = False
+    messages: List[AgentMessage], system_instructions: Optional[str] = None, use_structured_output: bool = False
 ) -> Union[str, StructuredResponse]:
     """
     Run the OpenAI Agent synchronously as a wrapper for the async function,
     because Bolt handlers are synchronous.
-    
+
     Args:
         messages: List of messages in the conversation history
         system_instructions: Custom system instructions
         use_structured_output: Whether to use structured output format
-        
+
     Returns:
         Either a string (plain text response) or a StructuredResponse object
     """
     try:
-        return asyncio.run(run_agent_with_messages(
-            messages, 
-            system_instructions, 
-            use_structured_output
-        ))
+        return asyncio.run(run_agent_with_messages(messages, system_instructions, use_structured_output))
     except Exception as e:
         import logging
 
@@ -74,7 +68,7 @@ def run_agent_with_messages_sync(
                 thread_title=None,
                 message_title="Error Encountered",
                 response=f"I'm sorry, I encountered an error: {str(e)}",
-                followups=None
+                followups=None,
             )
         else:
             return f"I'm sorry, I encountered an error: {str(e)}"

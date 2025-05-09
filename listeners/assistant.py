@@ -12,6 +12,7 @@ from lib.constants import (
     USER_MESSAGE_ERROR_LOG,
     THINKING_MESSAGE,
     MENTION_GREETING,
+    FOLLOWUP_PROMPTS_TITLE,
 )
 
 from lib.slack_utils import fetch_slack_thread, format_slack_messages_for_openai, markdown_to_mrkdwn
@@ -79,35 +80,34 @@ def respond_in_assistant_thread(
 
         # Handle structured response
         from lib.models import StructuredResponse
+
         if isinstance(response, StructuredResponse):
             # Update thread title if provided
             if response.thread_title:
                 set_title(response.thread_title)
-            
+
             # Build blocks for the message
             blocks = []
-            
+
             # Add message title if provided
             if response.message_title:
                 blocks.append(HeaderBlock(text=response.message_title))
-                blocks.append(DividerBlock())
-            
+
             # Add main response content
             mrkdwn_response = markdown_to_mrkdwn(response.response)
             blocks.append(SectionBlock(text=mrkdwn_response))
-            
+
+            # Send the message with blocks
+            say(text=mrkdwn_response, blocks=blocks)
+
             # Set follow-up prompts if provided
             if response.followups and len(response.followups) > 0:
                 # Use the helper method to get properly formatted prompts
                 from typing import cast, List, Dict, Union
-                formatted_prompts = cast(
-                    List[Union[str, Dict[str, str]]], 
-                    response.get_formatted_prompts()
-                )
-                set_suggested_prompts(prompts=formatted_prompts)
-            
-            # Send the message with blocks
-            say(text=mrkdwn_response, blocks=blocks)
+
+                formatted_prompts = cast(List[Union[str, Dict[str, str]]], response.get_formatted_prompts())
+                set_suggested_prompts(prompts=formatted_prompts, title=FOLLOWUP_PROMPTS_TITLE)
+
         else:
             # Fallback to plain text response if not structured
             mrkdwn_message = markdown_to_mrkdwn(response)
@@ -137,7 +137,7 @@ def respond_to_mention(
         # Extract event data from the body
         event = body.get("event", {})
         message_text = event.get("text", "")
-        #user_id = event.get("user")
+        # user_id = event.get("user")
         channel_id = event.get("channel")
         ts = event.get("ts")
         thread_ts = event.get("thread_ts", ts)  # Use message ts as thread_ts if not in a thread
@@ -181,7 +181,7 @@ def respond_to_thread_message(
         # Extract event data from the body
         event = body.get("event", {})
         message_text = event.get("text", "")
-        #user_id = event.get("user")
+        # user_id = event.get("user")
         channel_id = event.get("channel")
         ts = event.get("ts")
         thread_ts = event.get("thread_ts")
@@ -242,34 +242,26 @@ def process_thread_and_respond(channel_id: str, thread_ts: str, client: WebClien
 
         # Handle structured response
         from lib.models import StructuredResponse
+
         if isinstance(response, StructuredResponse):
             # Build blocks for the message
             blocks = []
-            
+
             # Add message title if provided
             if response.message_title:
                 blocks.append(HeaderBlock(text=response.message_title))
                 blocks.append(DividerBlock())
-            
+
             # Add main response content
             mrkdwn_response = markdown_to_mrkdwn(response.response)
             blocks.append(SectionBlock(text=mrkdwn_response))
-            
+
             # Send the response in the thread with blocks if available
             if blocks:
-                client.chat_postMessage(
-                    channel=channel_id, 
-                    thread_ts=thread_ts, 
-                    text=mrkdwn_response,
-                    blocks=blocks
-                )
+                client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=mrkdwn_response, blocks=blocks)
             else:
-                client.chat_postMessage(
-                    channel=channel_id, 
-                    thread_ts=thread_ts, 
-                    text=mrkdwn_response
-                )
-            
+                client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=mrkdwn_response)
+
             # Note: We can't update thread title or set suggested prompts in regular threads
             # as those are specific to Assistant threads
         else:

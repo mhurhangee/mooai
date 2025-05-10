@@ -1,4 +1,4 @@
-# MooAI Slack Bot
+# MooAI (Python) Slack Bot
 
 A Slack bot that integrates with OpenAI's Agent SDK to provide AI assistant functionality in Slack.
 
